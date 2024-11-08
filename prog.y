@@ -8,21 +8,16 @@ int yylex(void);
 
 // Structure for expression attributes
 struct expr_attr {
-    int truelist;    // quad number for true jump
-    int falselist;   // quad number for false jump
-    int nextlist;    // quad number for next instruction
-    char* addr;      // address or temporary name 
-};
-
-// Structure for marker - quad number
-struct marker {
-    int quad;
+    char* addr;      // address or temporary name
+    int lineno;
+    int blockno;
 };
 
 // Global variables
-int nextquad = 1;
 char quads[1000][100];
+int nextquad = 1;
 int tmpCounter = 1;
+int blockCounter = 1;
 
 char* gentmp() {
     char* temp = malloc(10);
@@ -36,8 +31,9 @@ void emit(char* op, char* arg1, char* arg2, char* result);
 %union {
     int intval;      // NUMB tokens
     char* strval;    // IDEN tokens
-    struct expr_attr* expr;  // expressions - contains truelist, falselist, nextlist and temporary address
-    struct marker* mark;     // marking positions in code for backpatching - quad number
+    struct expr_attr* expr;  // expressions - addr, lineno, blockno
+    int linemark;     // marking positions in code for backpatching - quad number
+    int blockmark;    // marking positions in code for backpatching - block number
 }
 
 %token <strval> IDEN NUMB
@@ -46,74 +42,78 @@ void emit(char* op, char* arg1, char* arg2, char* result);
 %token EQ NEQ LT GT LE GE
 
 %type <expr> list stmt asgn cond loop expr bool atom
-%type <mark> m
+%type <linemark> m
+%type <blockmark> n
 %type <strval> oper reln
 %start list
 
 %%
 
 m       : /* empty */          { 
-                                $$ = malloc(sizeof(struct marker));
-                                $$->quad = nextquad; 
+                                $$ = nextquad;
+                              }
+        ;
+
+n       : /* empty */          { 
+                                $$ = blockCounter++; 
                               }
         ;
 
 list    : stmt                  { 
                                 $$ = malloc(sizeof(struct expr_attr));
-                                $$->nextlist = $1->nextlist; 
+                                $$->lineno = $1->lineno;
+                                $$->blockno = $1->blockno;
                               }
         | stmt list          { 
                                 $$ = malloc(sizeof(struct expr_attr));
-                                backpatch($1->nextlist, $2->nextlist);
-                                $$->nextlist = $2->nextlist; 
+                                $$->lineno = $1->lineno;
+                                $$->blockno = $1->blockno;
                               }
         ;
 
 stmt    : asgn                 { 
                                 $$ = malloc(sizeof(struct expr_attr));
-                                $$->nextlist = -1; 
+                                $$->lineno = $1->lineno;
                               }
         | cond                 { 
                                 $$ = malloc(sizeof(struct expr_attr));
-                                $$->nextlist = $1->nextlist; 
+                                $$->lineno = $1->lineno; 
                               }
         | loop                 { 
                                 $$ = malloc(sizeof(struct expr_attr));
-                                $$->nextlist = $1->nextlist; 
+                                $$->lineno = $1->lineno; 
                               }
         ;
 
 asgn    : LP SET IDEN atom RP {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 emit("=", $4->addr, "", $3);
-                                $$->nextlist = -1;
+                                $$->lineno = nextquad-1;
+                              }
+        ;
+cond    : LP n WHEN bool n list RP m {
+                                $$ = malloc(sizeof(struct expr_attr));
+                                backpatch($4->lineno, $8);
+                                $4->blockno = $5;
+                                $$->lineno = nextquad-1;
                               }
         ;
 
-cond    : LP m WHEN bool m list RP m {
+loop    : LP n LOOP WHILE bool n list RP m {
                                 $$ = malloc(sizeof(struct expr_attr));
-                                // backpatch($4->truelist, $5->quad);
-                                backpatch($4->falselist, $5->quad);
-                                $$->nextlist = $8->quad;
-                              } 
-        ;
-
-loop    : LP m LOOP WHILE bool m list RP m {
-                                $$ = malloc(sizeof(struct expr_attr));
-                                backpatch($7->nextlist, $2->quad);
-                                backpatch($5->truelist, $6->quad);
-                                backpatch($5->falselist, $9->quad);
                                 emit("goto", "", "", "_");
-                                backpatch(nextquad, $2->quad);
-                                $$->nextlist = $9->quad;
+                                backpatch(nextquad, $5->lineno);
+                                backpatch($5->lineno, $9);
+                                $5->blockno = $6;
+                                $$->lineno = nextquad-1;
+                                $$->blockno = $2;
                               }
         ;
 
 bool    : LP reln atom atom RP {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 emit($2, $3->addr, $4->addr, "_");
-                                $$->truelist = nextquad;
-                                $$->falselist = nextquad+1;
+                                $$->lineno = nextquad-1;
                               }
         ;
 
@@ -128,6 +128,7 @@ atom    : IDEN                  {
         | expr                  {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 $$->addr = $1->addr;
+                                $$->lineno = $1->lineno;
                               }
         ;
 
@@ -135,6 +136,7 @@ expr    : LP oper atom atom RP {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 $$->addr = gentmp();
                                 emit($2, $3->addr, $4->addr, $$->addr);
+                                $$->lineno = nextquad-1;
                               }
         ;
 
@@ -155,14 +157,12 @@ reln    : EQ                    { $$ = "==" ; }
 %%
 
 void backpatch(int quad_to_patch, int target_quad) {
-    if (quad_to_patch != -1) {
-        char str[10];
-        sprintf(str, "%d", target_quad);
-        char* quadStr = quads[quad_to_patch];
-        char* target = strstr(quadStr, "_");
-        if (target) {
-            strcpy(target, str);
-        }
+    char str[10];
+    sprintf(str, "%d", target_quad);
+    char* quadStr = quads[quad_to_patch];
+    char* target = strstr(quadStr, "_");
+    if (target) {
+        strcpy(target, str);
     }
 }
 
