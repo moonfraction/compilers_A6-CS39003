@@ -159,7 +159,6 @@ void emit_expr(char* op, char* arg1, char* arg2, char* result, int block_no) {
     nextquad++;
 }
 
-
 void yyerror(const char *s) {
     fprintf(stderr, "Error: %s\n", s);
 }
@@ -169,14 +168,23 @@ int main(void) {
 
     int currentBlock = 1;
     int currentQuad = 1;
-
-    for(int i=1; i<=blockCounter; i++) {
-        printf("Block %d\n", i);
+    int block_no = 1;
+    printf("Block %d\n", block_no++);
+    for(int i=1; i<blockCounter; i++) {
+        int block_changed = 0;
+       
         while(currentQuad < nextquad && quads[currentQuad].blockno == i) {
             printf("%-5d: %s\n", currentQuad, quads[currentQuad].text);
             currentQuad++;
+            block_changed = 1;
+        }
+        if(block_changed && i != blockCounter-1) {
+             printf("Block %d\n", block_no++);
         }
     }
+
+    printf("\n");
+    printf("%-5d:", nextquad);
 
     return 0;
 } 
