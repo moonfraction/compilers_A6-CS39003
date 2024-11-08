@@ -75,8 +75,8 @@ asgn    : LP SET IDEN atom RP { // id = atom
                               }
         ;
 
-cond    : LP WHEN bool n list RP m n {
-                                    backpatch($3, $7); // backpatch the target of the bool
+cond    : LP WHEN n bool n list RP m n {
+                                    backpatch($4, $8); // backpatch the target of the bool
                               }
         ;
 
@@ -159,35 +159,6 @@ void emit_expr(char* op, char* arg1, char* arg2, char* result, int block_no) {
     nextquad++;
 }
 
-// void emit(char* op, char* arg1, char* arg2, char* result) {
-//     if (strcmp(op, "goto") == 0) {
-//         sprintf(quads[nextquad++], "goto %s", result);
-//     }
-//     else if (strcmp(op, "=") == 0) {
-//         sprintf(quads[nextquad++], "%s = %s", result, arg1);
-//     }
-//     else if (strcmp(op, "==") == 0) {
-//         sprintf(quads[nextquad++], "iffalse (%s == %s) goto _", arg1, arg2);
-//     }
-//     else if (strcmp(op, "!=") == 0) {
-//         sprintf(quads[nextquad++], "iffalse (%s != %s) goto _", arg1, arg2);
-//     }
-//     else if (strcmp(op, "<") == 0) {
-//         sprintf(quads[nextquad++], "iffalse (%s < %s) goto _", arg1, arg2);
-//     }
-//     else if (strcmp(op, ">") == 0) {
-//         sprintf(quads[nextquad++], "iffalse (%s > %s) goto _", arg1, arg2);
-//     }
-//     else if (strcmp(op, "<=") == 0) {
-//         sprintf(quads[nextquad++], "iffalse (%s <= %s) goto _", arg1, arg2);
-//     }
-//     else if (strcmp(op, ">=") == 0) {
-//         sprintf(quads[nextquad++], "iffalse (%s >= %s) goto _", arg1, arg2);
-//     }
-//     else {
-//         sprintf(quads[nextquad++], "%s = %s %s %s", result, arg1, op, arg2);
-//     }
-// }
 
 void yyerror(const char *s) {
     fprintf(stderr, "Error: %s\n", s);
