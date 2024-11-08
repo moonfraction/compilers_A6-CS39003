@@ -75,14 +75,14 @@ asgn    : LP SET IDEN atom RP { // id = atom
                               }
         ;
 
-cond    : LP WHEN bool n list RP m {
-                                    backpatch($4, $7); // backpatch the target of the bool
+cond    : LP WHEN bool n list RP m n {
+                                    backpatch($3, $7); // backpatch the target of the bool
                               }
         ;
 
-loop    : LP LOOP WHILE m bool n list RP m {
+loop    : LP LOOP WHILE m n bool n list RP m {
                                 emit_goto($4, blockCounter); // goto $4
-                                backpatch($5, $9); // backpatch the target of the bool
+                                backpatch($6, $10+1); // backpatch the target of the bool
                               }
         ;
 
@@ -199,7 +199,7 @@ int main(void) {
     int currentBlock = 1;
     int currentQuad = 1;
 
-    for(int i=1; i<blockCounter; i++) {
+    for(int i=1; i<=blockCounter; i++) {
         printf("Block %d\n", i);
         while(currentQuad < nextquad && quads[currentQuad].blockno == i) {
             printf("%-5d: %s\n", currentQuad, quads[currentQuad].text);
