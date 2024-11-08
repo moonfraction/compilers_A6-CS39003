@@ -12,7 +12,6 @@ struct expr_attr {
     int falselist;   // quad number for false jump
     int nextlist;    // quad number for next instruction
     char* addr;      // address or temporary name 
-    int quad;        // quad number
 };
 
 // Structure for marker - quad number
@@ -87,7 +86,6 @@ stmt    : asgn                 {
 asgn    : LP SET IDEN atom RP {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 emit("=", $4->addr, "", $3);
-                                $$->quad = nextquad-1;
                                 $$->nextlist = -1;
                               }
         ;
@@ -97,7 +95,6 @@ cond    : LP m WHEN bool m list RP m {
                                 // backpatch($4->truelist, $5->quad);
                                 backpatch($4->falselist, $5->quad);
                                 $$->nextlist = $8->quad;
-                                $$->quad = nextquad-1;
                               } 
         ;
 
@@ -109,7 +106,6 @@ loop    : LP m LOOP WHILE bool m list RP m {
                                 emit("goto", "", "", "_");
                                 backpatch(nextquad, $2->quad);
                                 $$->nextlist = $9->quad;
-                                $$->quad = nextquad-1;
                               }
         ;
 
@@ -118,24 +114,20 @@ bool    : LP reln atom atom RP {
                                 emit($2, $3->addr, $4->addr, "_");
                                 $$->truelist = nextquad;
                                 $$->falselist = nextquad+1;
-                                $$->quad = nextquad-1;
                               }
         ;
 
 atom    : IDEN                  {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 $$->addr = $1;
-                                $$->quad = nextquad-1;
                               }
         | NUMB                  {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 $$->addr = $1;
-                                $$->quad = nextquad-1;
                               }
         | expr                  {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 $$->addr = $1->addr;
-                                $$->quad = $1->quad;
                               }
         ;
 
@@ -143,7 +135,6 @@ expr    : LP oper atom atom RP {
                                 $$ = malloc(sizeof(struct expr_attr));
                                 $$->addr = gentmp();
                                 emit($2, $3->addr, $4->addr, $$->addr);
-                                $$->quad = nextquad-1;
                               }
         ;
 

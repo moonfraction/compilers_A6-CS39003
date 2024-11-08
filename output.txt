@@ -1,0 +1,18 @@
+1    : x = 2024
+2    : n = 0
+3    : iffalse (n == 0) goto _
+4    : F = 0
+5    : iffalse (n == 1) goto 19
+6    : F = 1
+7    : iffalse (n >= 2) goto 19
+8    : m = 2
+9    : Fprev1 = 1
+10   : Fprev2 = 0
+11   : iffalse (m <= n) goto _
+12   : $1 = Fprev1 + Fprev2
+13   : F = $1
+14   : Fprev2 = Fprev1
+15   : Fprev1 = F
+16   : $2 = m + 1
+17   : m = $2
+18   : goto 11
