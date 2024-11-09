@@ -6,35 +6,32 @@
 void yyerror(const char *s);
 int yylex(void);
 
-struct _quad{
-    int blockno;
-    char text[100];
-} quads[1000];
-
 // Global variables
-int nextquad = 1;
-int tmpCounter = 1;
-int blockCounter = 1;
+char quads[1000][100]; // to store the quads
+int leaders[1000]; // to store the leaders
+int nextquad = 1; // to store the next quad number
+int tmpCounter = 1; // to store the temporary variable counter
+int blockCounter = 1; // to store the block counter
 
-char* gentmp() {
+
+char* gentmp() { // to generate a temporary variable
     char* temp = malloc(10);
     sprintf(temp, "$%d", tmpCounter++);
     return temp;
 }
 
-void emit_goto(int jump_to, int block_no);
-void emit_set(char* op, char* arg, char* result, int block_no);
-void emit_bool(char* op, char* arg1, char* arg2, int block_no);
-void emit_expr(char* op, char* arg1, char* arg2, char* result, int block_no);
+void emit_goto(int jump_to);
+void emit_set(char* op, char* arg, char* result);
+void emit_bool(char* op, char* arg1, char* arg2);
+void emit_expr(char* op, char* arg1, char* arg2, char* result);
 void backpatch(int quad_no, int target_quad);
-
-
+void add_leader(int leader);
 %}
+
 %union {
     char* strval;    // IDEN, NUMB, atom
     int quadno;  // for bool
     int linemark;     // m
-    int blockmark;    // n
 }
 
 %token <strval> IDEN NUMB
@@ -44,7 +41,6 @@ void backpatch(int quad_no, int target_quad);
 
 %type <quadno> bool
 %type <linemark> m
-%type <blockmark> n
 %type <strval> atom oper reln expr
 
 %start list
@@ -53,11 +49,6 @@ void backpatch(int quad_no, int target_quad);
 
 m       : /* empty */          { 
                                 $$ = nextquad;
-                              }
-        ;
-
-n       : /* empty */          { 
-                                $$ = blockCounter++; 
                               }
         ;
 
@@ -71,23 +62,30 @@ stmt    : asgn
         ;
 
 asgn    : LP SET IDEN atom RP { // id = atom
-                                emit_set("=", $4, $3, blockCounter);
+                                emit_set("=", $4, $3);
                               }
         ;
 
-cond    : LP WHEN n bool n list RP m n {
-                                    backpatch($4, $8); // backpatch the target of the bool
+cond    : LP WHEN bool list RP m {
+                                    backpatch($3, $6); // backpatch the target of the bool
+                                    add_leader($3+1);
+                                    add_leader($6);
                               }
         ;
 
-loop    : LP LOOP WHILE m n bool n list RP m n {
-                                emit_goto($4, blockCounter-1); // goto $4
-                                backpatch($6, $10+1); // backpatch the target of the bool
+loop    : LP LOOP WHILE m bool list RP m {
+                                emit_goto($4); // goto $4
+                                add_leader($4);
+
+                                backpatch($5, $8+1); // backpatch the target of the bool
+                                add_leader($5+1);
+                                add_leader($8+1);
                               }
         ;
 
 bool    : LP reln atom atom RP { // iffalse (expr1 reln expr2) goto _
-                                emit_bool($2, $3, $4, blockCounter);
+                                emit_bool($2, $3, $4);
+                                // add_leader(nextquad-2);
                                 $$ = nextquad-1;
                               }
         ;
@@ -112,7 +110,7 @@ atom    : IDEN                  {
 
 expr    : LP oper atom atom RP { // temp = expr op expr
                                 char *temp = gentmp();
-                                emit_expr($2, $3, $4, temp, blockCounter);
+                                emit_expr($2, $3, $4, temp);
                                 $$ = temp;
                               }
         ;
@@ -133,61 +131,62 @@ reln    : EQ                    { $$ = "==" ; }
         ;
 %%
 
+void add_leader(int leader) {
+    if(leaders[blockCounter-1] != leader) {
+        leaders[blockCounter++] = leader;
+    }
+}
+
 void backpatch(int quad_to_patch, int target_quad) {
     char str[10];
     sprintf(str, "%d", target_quad);
-    char* target = strstr(quads[quad_to_patch].text, "_");
+    char* target = strstr(quads[quad_to_patch], "_");
     if (target) {
         strcpy(target, str);
     }
 }
 
-void emit_goto(int jump_to, int block_no) {
-    sprintf(quads[nextquad].text, "goto %d", jump_to);
-    quads[nextquad].blockno = block_no;
-    nextquad++;
+void emit_goto(int jump_to) {
+    sprintf(quads[nextquad++], "goto %d", jump_to);
 }
 
-void emit_set(char* op, char* arg, char* result, int block_no) {
-    sprintf(quads[nextquad].text, "%s = %s", result, arg);
-    quads[nextquad].blockno = block_no;
-    nextquad++;
+void emit_set(char* op, char* arg, char* result) {
+    sprintf(quads[nextquad++], "%s = %s", result, arg);
 }
 
-void emit_bool(char* op, char* arg1, char* arg2, int block_no) {
-    sprintf(quads[nextquad].text, "iffalse (%s %s %s) goto _", arg1, op, arg2);
-    quads[nextquad].blockno = block_no;
-    nextquad++;
+void emit_bool(char* op, char* arg1, char* arg2) {
+    sprintf(quads[nextquad++], "iffalse (%s %s %s) goto _", arg1, op, arg2);
 }
 
-void emit_expr(char* op, char* arg1, char* arg2, char* result, int block_no) {
-    sprintf(quads[nextquad].text, "%s = %s %s %s", result, arg1, op, arg2);
-    quads[nextquad].blockno = block_no;
-    nextquad++;
+void emit_expr(char* op, char* arg1, char* arg2, char* result) {
+    sprintf(quads[nextquad++], "%s = %s %s %s", result, arg1, op, arg2);
 }
 
 void yyerror(const char *s) {
     fprintf(stderr, "Error: %s\n", s);
 }
 
+void sort(int leader[], int n) {
+    for(int i=0; i<n; i++) {
+        for(int j=i+1; j<n; j++) {
+            if(leader[i] > leader[j]) {
+                int temp = leader[i];
+                leader[i] = leader[j];
+                leader[j] = temp;
+            }
+        }
+    }
+}
+
 int main(void) {
     yyparse();
+    leaders[0] = 1;
+    sort(leaders, blockCounter);
+    int current_block = 0;
 
-    int currentBlock = 1;
-    int currentQuad = 1;
-    int block_no = 1;
-    printf("Block %d\n", block_no++);
-    for(int i=1; i<blockCounter; i++) {
-        int block_changed = 0;
-       
-        while(currentQuad < nextquad && quads[currentQuad].blockno == i) {
-            printf("   %-5d: %s\n", currentQuad, quads[currentQuad].text);
-            currentQuad++;
-            block_changed = 1;
-        }
-        if(block_changed && i != blockCounter-1 && currentQuad != nextquad) {
-             printf("\nBlock %d\n", block_no++);
-        }
+    for(int i=1; i<nextquad; i++) {
+        if(leaders[current_block] == i) printf("Block %d\n", ++current_block);
+        printf("   %-5d: %s\n", i, quads[i]);
     }
 
     printf("\n");
