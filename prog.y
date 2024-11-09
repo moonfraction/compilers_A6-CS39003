@@ -96,7 +96,14 @@ atom    : IDEN                  {
                                 $$ = $1;
                               }
         | NUMB                  {
-                                $$ = $1;
+                                char *num = $1;
+                                if (num[0] == '+') {
+                                    $$ = num + 1;  // Skip the + sign
+                                } else if (strcmp(num, "0") == 0 || strcmp(num, "+0") == 0 || strcmp(num, "-0") == 0) {
+                                    $$ = "0";
+                                } else {
+                                    $$ = num;
+                                }
                               }
         | expr                  {
                                 $$ = $1;
@@ -174,17 +181,17 @@ int main(void) {
         int block_changed = 0;
        
         while(currentQuad < nextquad && quads[currentQuad].blockno == i) {
-            printf("%-5d: %s\n", currentQuad, quads[currentQuad].text);
+            printf("   %-5d: %s\n", currentQuad, quads[currentQuad].text);
             currentQuad++;
             block_changed = 1;
         }
         if(block_changed && i != blockCounter-1 && currentQuad != nextquad) {
-             printf("Block %d\n", block_no++);
+             printf("\nBlock %d\n", block_no++);
         }
     }
 
     printf("\n");
-    printf("%-5d:", nextquad);
+    printf("   %-5d:", nextquad);
 
     return 0;
 } 

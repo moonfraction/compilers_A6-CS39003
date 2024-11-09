@@ -8,4 +8,4 @@ run:
 	./prog < sample.txt > output.txt
 
 clean:
-	rm -f y.tab.c y.tab.h lex.yy.c prog output.txt
+	rm -f y.tab.c y.tab.h lex.yy.c prog output.txt *.out

@@ -24,7 +24,7 @@
 ">"             { return GT; }
 "<="            { return LE; }
 ">="            { return GE; }
-[1-9][0-9]*|0    { yylval.strval = strdup(yytext); return NUMB; }
+[+-]?([1-9][0-9]*|0) { yylval.strval = strdup(yytext); return NUMB; }
 [a-zA-Z_][a-zA-Z0-9_]* { yylval.strval = strdup(yytext); return IDEN; }
 .               { printf("Unexpected character: %s\n", yytext); }
 %%
