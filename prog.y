@@ -80,8 +80,8 @@ cond    : LP WHEN n bool n list RP m n {
                               }
         ;
 
-loop    : LP LOOP WHILE m n bool n list RP m {
-                                emit_goto($4, blockCounter); // goto $4
+loop    : LP LOOP WHILE m n bool n list RP m n {
+                                emit_goto($4, blockCounter-1); // goto $4
                                 backpatch($6, $10+1); // backpatch the target of the bool
                               }
         ;
@@ -178,7 +178,7 @@ int main(void) {
             currentQuad++;
             block_changed = 1;
         }
-        if(block_changed && i != blockCounter-1) {
+        if(block_changed && i != blockCounter-1 && currentQuad != nextquad) {
              printf("Block %d\n", block_no++);
         }
     }
