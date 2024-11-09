@@ -185,7 +185,10 @@ int main(void) {
     int current_block = 0;
 
     for(int i=1; i<nextquad; i++) {
-        if(leaders[current_block] == i) printf("Block %d\n", ++current_block);
+        if(leaders[current_block] == i) {
+            if(i > 1) printf("\n");
+            printf("Block %d\n", ++current_block);
+        }
         printf("   %-5d: %s\n", i, quads[i]);
     }
 
