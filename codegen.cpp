@@ -17,59 +17,52 @@ TargetQuad T[1000];
 int nextTargetQuad = 1;
 int TargetCode_block_number = 0;
 vector<int> Target_code_blocks;
+vector<int> store_ops; // stores the quad numbers of the Store operations i.e. "=" operations
 
+// registers descriptor
 struct regDescriptor {
     bool isfree;
     string name; // name of the variable/temp
 };
-regDescriptor* regs = nullptr;
-int numRegisters;
+regDescriptor* regs = nullptr; // array of registers
+int numRegisters; // number of registers
 
+
+/****************** REGISTERS FUNCTIONS ******************/
 int find_free_register() { // returns the index of the free register
-    for (int i = 0; i < numRegisters; i++) {
-        if (regs[i].isfree) return i;
-    }
+    for (int i = 0; i < numRegisters; i++) if (regs[i].isfree) return i;
     return -1;
 }
 
 int find_register_with_var(const string& var) { // finds the register that contains the variable else returns -1
-    for (int i = 0; i < numRegisters; i++) {
-        if (regs[i].name == var) return i;
-    }
+    for (int i = 0; i < numRegisters; i++) if (regs[i].name == var) return i;
     return -1;
 }
 
-void free_register(int reg) { // frees the register
+void free_register(int reg) { // frees the register at given index
     regs[reg].isfree = true;
     regs[reg].name = "";
 }
 
 void free_all_registers() { // frees all the registers
-    for (int i = 0; i < numRegisters; i++) {
-        free_register(i);
-    }
+    for (int i = 0; i < numRegisters; i++) free_register(i);
 }
 
 int find_var_from_st(const string& var) { // finds the index of the variable in the symbol table
-    for (int i = 0; i < nextSymbol; i++) {
-        if (st[i].name == var) return i;
-    }
+    for (int i = 0; i < nextSymbol; i++) if (st[i].name == var) return i;
     return -1;
 }
 
 void free_reg_from_st(const string& var) { // frees the register of a variable from the symbol table 
     int index = find_var_from_st(var);
-    if (index != -1) {
-        st[index].reg = -1;
-    }
+    if (index != -1) st[index].reg = -1;
 }
 
 void free_all_regs_from_st() { // frees all the registers from the symbol table
-    for (int i = 0; i < nextSymbol; i++) {
-        st[i].reg = -1;
-    }
+    for (int i = 0; i < nextSymbol; i++) st[i].reg = -1;
 }
 
+// auxiliary function 
 bool isNumber(const string& str) { // checks if the string is a number
     if (str.empty()) return false;
     char* end = nullptr;
@@ -78,27 +71,25 @@ bool isNumber(const string& str) { // checks if the string is a number
 }
 
 
-vector<int> store_ops; // stores the quad numbers of the Store operations i.e. = operations
-
+/****************** TARGET CODE QUAD FUNCTIONS ******************/
 void generate_store(){ // at the end of a block
-    // the arg1 will already be in a register
+    // the arg1 will already be in a register, to be stored in a memory
     for (int j = 0; j < store_ops.size(); j++) {
-        int reg = find_register_with_var(quads[store_ops[j]].arg1); // find the register that contains the variable
+        int var_idx = find_var_from_st(quads[store_ops[j]].arg1);
+        int reg = st[var_idx].reg; // find the register that contains the variable
         T[nextTargetQuad].op = "ST";
         T[nextTargetQuad].arg1 = "R" + to_string(reg);
         T[nextTargetQuad].result = quads[store_ops[j]].result;
         nextTargetQuad++;
     }
-    // free the registers
+    // free the registers at the end of the block
     free_all_regs_from_st();
     free_all_registers();
     store_ops.clear();
 }
 
 void generate_load(int quad_num){
-    // this func is called when some arg is not already in a register
-    // n = $2 : nothing to do, but store the quad number in store_ops
-    // $2 is already in a register
+    // n = $2: $2 is already in a register
 
     //free the register of result if it is already in use
     int reg_res = find_register_with_var(quads[quad_num].result);
@@ -108,7 +99,14 @@ void generate_load(int quad_num){
     }
 
     store_ops.push_back(quad_num);
-    if(!isNumber(quads[quad_num].arg1)) return;
+    if(!isNumber(quads[quad_num].arg1)) {
+        int reg_arg1 = find_register_with_var(quads[quad_num].arg1);
+        regs[reg_arg1].isfree = false;
+        regs[reg_arg1].name = quads[quad_num].result;
+        int var_idx = find_var_from_st(quads[quad_num].arg1);
+        st[var_idx].reg = reg_arg1;
+        return;
+    }
 
     // n = 2:  2 will be loaded in a register
     int reg = find_free_register();
@@ -151,9 +149,7 @@ void generate_expr(int quad_num){
             regs[reg1].name = quads[quad_num].arg1;
             // update the symbol table
             int var_idx = find_var_from_st(quads[quad_num].arg1);
-            if(var_idx != -1){
-                st[var_idx].reg = reg1;
-            }
+            st[var_idx].reg = reg1;
             // load the arg1 in a register
             T[nextTargetQuad].op = "LD";
             T[nextTargetQuad].arg1 = quads[quad_num].arg1;
@@ -172,9 +168,7 @@ void generate_expr(int quad_num){
             regs[reg2].name = quads[quad_num].arg2;
             // update the symbol table
             int var_idx = find_var_from_st(quads[quad_num].arg2);
-            if(var_idx != -1){
-                st[var_idx].reg = reg2;
-            }
+            st[var_idx].reg = reg2;
             // load the arg2 in a register
             T[nextTargetQuad].op = "LD";
             T[nextTargetQuad].arg1 = quads[quad_num].arg2;
@@ -184,8 +178,6 @@ void generate_expr(int quad_num){
         // T[nextTargetQuad].arg2 = "R" + to_string(reg2);
         Ra2 = reg2;
     }
-
-    
 
     if (quads[quad_num].op == "+") T[nextTargetQuad].op = "ADD";
     else if (quads[quad_num].op == "-") T[nextTargetQuad].op = "SUB";
@@ -198,6 +190,7 @@ void generate_expr(int quad_num){
     if(isNumber(quads[quad_num].arg2)) T[nextTargetQuad].arg2 = quads[quad_num].arg2;
     else T[nextTargetQuad].arg2 = "R" + to_string(Ra2);
 
+    // result of the operation will be stored in a register (temporary variable)
     int reg = find_register_with_var(quads[quad_num].result);
     if(reg == -1){
         reg = find_free_register();
@@ -205,9 +198,7 @@ void generate_expr(int quad_num){
         regs[reg].name = quads[quad_num].result;
         // update the symbol table
         int var_idx = find_var_from_st(quads[quad_num].result);
-        if(var_idx != -1){
-            st[var_idx].reg = reg;
-        }
+        st[var_idx].reg = reg;
     }
     T[nextTargetQuad].result = "R" + to_string(reg);
     nextTargetQuad++;
@@ -215,7 +206,8 @@ void generate_expr(int quad_num){
 
 void generate_goto(int quad_num){
     for (int j = 0; j < store_ops.size(); j++) {
-        int reg = find_register_with_var(quads[store_ops[j]].arg1); // find the register that contains the variable
+        int var_idx = find_var_from_st(quads[store_ops[j]].arg1);
+        int reg = st[var_idx].reg; // find the register that contains the variable
         T[nextTargetQuad].op = "ST";
         T[nextTargetQuad].arg1 = "R" + to_string(reg);
         T[nextTargetQuad].result = quads[store_ops[j]].result;
@@ -321,10 +313,6 @@ void update_target_labels(){
             
             // Update jump target to corresponding target code block
             T[i].result = to_string(Target_code_blocks[block_num]);
-            if(i==42) {
-                cout << "block_num: " << block_num << endl;
-                cout << "Target_code_blocks[block_num]: " << Target_code_blocks[block_num] << endl;
-            }
         }
     }
 }
