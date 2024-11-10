@@ -2,34 +2,35 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 
-void yyerror(const char *s);
-int yylex(void);
+using namespace std;
+
+extern void yyerror(const char *s);
+extern int yylex(void);
+extern int yyparse();
 
 // Global variables
-char quads[1000][100]; // to store the quads
+string quads[1000]; // to store the quads
 int leaders[1000]; // to store the leaders
 int nextquad = 1; // to store the next quad number
 int tmpCounter = 1; // to store the temporary variable counter
 int blockCounter = 1; // to store the block counter
 
-
-char* gentmp() { // to generate a temporary variable
-    char* temp = malloc(10);
-    sprintf(temp, "$%d", tmpCounter++);
-    return temp;
+string gentmp() { // to generate a temporary variable
+    return "$" + to_string(tmpCounter++);
 }
 
 void emit_goto(int jump_to);
-void emit_set(char* op, char* arg, char* result);
-void emit_bool(char* op, char* arg1, char* arg2);
-void emit_expr(char* op, char* arg1, char* arg2, char* result);
+void emit_set(string op, string arg, string result);
+void emit_bool(string op, string arg1, string arg2);
+void emit_expr(string op, string arg1, string arg2, string result);
 void backpatch(int quad_no, int target_quad);
 void add_leader(int leader);
 %}
 
 %union {
-    char* strval;    // IDEN, NUMB, atom
+    string* strval;    // IDEN, NUMB, atom
     int quadno;  // for bool
     int linemark;     // m
 }
@@ -62,7 +63,9 @@ stmt    : asgn
         ;
 
 asgn    : LP SET IDEN atom RP { // id = atom
-                                emit_set("=", $4, $3);
+                                emit_set("=", *$4, *$3);
+                                delete $3;
+                                delete $4;
                               }
         ;
 
@@ -84,9 +87,12 @@ loop    : LP LOOP WHILE m bool list RP m {
         ;
 
 bool    : LP reln atom atom RP { // iffalse (expr1 reln expr2) goto _
-                                emit_bool($2, $3, $4);
+                                emit_bool(*$2, *$3, *$4);
                                 // add_leader(nextquad-2);
                                 $$ = nextquad-1;
+                                delete $2;
+                                delete $3;
+                                delete $4;
                               }
         ;
 
@@ -94,13 +100,13 @@ atom    : IDEN                  {
                                 $$ = $1;
                               }
         | NUMB                  {
-                                char *num = $1;
+                                string num = *$1;
                                 if (num[0] == '+') {
-                                    $$ = num + 1;  // Skip the + sign
-                                } else if (strcmp(num, "0") == 0 || strcmp(num, "+0") == 0 || strcmp(num, "-0") == 0) {
-                                    $$ = "0";
+                                    $$ = new string(num.substr(1));  // Skip the + sign
+                                } else if (num == "0" || num == "+0" || num == "-0") {
+                                    $$ = new string("0");
                                 } else {
-                                    $$ = num;
+                                    $$ = $1;
                                 }
                               }
         | expr                  {
@@ -109,25 +115,28 @@ atom    : IDEN                  {
         ;
 
 expr    : LP oper atom atom RP { // temp = expr op expr
-                                char *temp = gentmp();
-                                emit_expr($2, $3, $4, temp);
-                                $$ = temp;
+                                string temp = gentmp();
+                                emit_expr(*$2, *$3, *$4, temp);
+                                $$ = new string(temp);
+                                delete $2;
+                                delete $3;
+                                delete $4;
                               }
         ;
 
-oper    : ADD                   { $$ = "+" ; }
-        | SUB                   { $$ = "-" ; }
-        | MUL                   { $$ = "*" ; }
-        | DIV                   { $$ = "/" ; }
-        | MOD                   { $$ = "%" ; }
+oper    : ADD                   { $$ = new string("+"); }
+        | SUB                   { $$ = new string("-"); }
+        | MUL                   { $$ = new string("*"); }
+        | DIV                   { $$ = new string("/"); }
+        | MOD                   { $$ = new string("%"); }
         ;
 
-reln    : EQ                    { $$ = "==" ; }
-        | NEQ                   { $$ = "!=" ; }
-        | LT                    { $$ = "<" ; }
-        | GT                    { $$ = ">" ; }
-        | LE                    { $$ = "<=" ; }
-        | GE                    { $$ = ">=" ; }
+reln    : EQ                    { $$ = new string("=="); }
+        | NEQ                   { $$ = new string("!="); }
+        | LT                    { $$ = new string("<"); }
+        | GT                    { $$ = new string(">"); }
+        | LE                    { $$ = new string("<="); }
+        | GE                    { $$ = new string(">="); }
         ;
 %%
 
@@ -138,62 +147,28 @@ void add_leader(int leader) {
 }
 
 void backpatch(int quad_to_patch, int target_quad) {
-    char str[10];
-    sprintf(str, "%d", target_quad);
-    char* target = strstr(quads[quad_to_patch], "_");
-    if (target) {
-        strcpy(target, str);
+    size_t pos = quads[quad_to_patch].find('_');
+    if (pos != string::npos) {
+        quads[quad_to_patch].replace(pos, 1, to_string(target_quad));
     }
 }
 
 void emit_goto(int jump_to) {
-    sprintf(quads[nextquad++], "goto %d", jump_to);
+    quads[nextquad++] = "goto " + to_string(jump_to);
 }
 
-void emit_set(char* op, char* arg, char* result) {
-    sprintf(quads[nextquad++], "%s = %s", result, arg);
+void emit_set(string op, string arg, string result) {
+    quads[nextquad++] = result + " = " + arg;
 }
 
-void emit_bool(char* op, char* arg1, char* arg2) {
-    sprintf(quads[nextquad++], "iffalse (%s %s %s) goto _", arg1, op, arg2);
+void emit_bool(string op, string arg1, string arg2) {
+    quads[nextquad++] = "iffalse (" + arg1 + " " + op + " " + arg2 + ") goto _";
 }
 
-void emit_expr(char* op, char* arg1, char* arg2, char* result) {
-    sprintf(quads[nextquad++], "%s = %s %s %s", result, arg1, op, arg2);
+void emit_expr(string op, string arg1, string arg2, string result) {
+    quads[nextquad++] = result + " = " + arg1 + " " + op + " " + arg2;
 }
 
 void yyerror(const char *s) {
     fprintf(stderr, "Error: %s\n", s);
 }
-
-void sort(int leader[], int n) {
-    for(int i=0; i<n; i++) {
-        for(int j=i+1; j<n; j++) {
-            if(leader[i] > leader[j]) {
-                int temp = leader[i];
-                leader[i] = leader[j];
-                leader[j] = temp;
-            }
-        }
-    }
-}
-
-int main(void) {
-    yyparse();
-    leaders[0] = 1;
-    sort(leaders, blockCounter);
-    int current_block = 0;
-
-    for(int i=1; i<nextquad; i++) {
-        if(leaders[current_block] == i) {
-            if(i > 1) printf("\n");
-            printf("Block %d\n", ++current_block);
-        }
-        printf("   %-5d: %s\n", i, quads[i]);
-    }
-
-    printf("\n");
-    printf("   %-5d:", nextquad);
-
-    return 0;
-} 

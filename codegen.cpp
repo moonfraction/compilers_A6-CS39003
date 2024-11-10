@@ -1,59 +1,33 @@
 #include "y.tab.c"
 #include "lex.yy.c"
-#include <stdio.h>
+#include <algorithm>
+#include <iostream>
 
-void backpatch(int quad_to_patch, int target_quad) {
-    char str[10];
-    sprintf(str, "%d", target_quad);
-    char* target = strstr(quads[quad_to_patch].text, "_");
-    if (target) {
-        strcpy(target, str);
+using namespace std;
+
+int main(int argc, char* argv[]) {
+    // Parse command line arguments for number of registers
+    int numRegisters = 5;  // default
+    if (argc > 1) {
+        numRegisters = atoi(argv[1]);
+        if (numRegisters <= 0) numRegisters = 5;
     }
-}
-
-void emit_goto(int jump_to, int block_no) {
-    sprintf(quads[nextquad].text, "goto %d", jump_to);
-    quads[nextquad].blockno = block_no;
-    nextquad++;
-}
-
-void emit_set(char* op, char* arg, char* result, int block_no) {
-    sprintf(quads[nextquad].text, "%s = %s", result, arg);
-    quads[nextquad].blockno = block_no;
-    nextquad++;
-}
-
-void emit_bool(char* op, char* arg1, char* arg2, int block_no) {
-    sprintf(quads[nextquad].text, "iffalse (%s %s %s) goto _", arg1, op, arg2);
-    quads[nextquad].blockno = block_no;
-    nextquad++;
-}
-
-void emit_expr(char* op, char* arg1, char* arg2, char* result, int block_no) {
-    sprintf(quads[nextquad].text, "%s = %s %s %s", result, arg1, op, arg2);
-    quads[nextquad].blockno = block_no;
-    nextquad++;
-}
-
-int main() {
+    
     yyparse();
+    leaders[0] = 1;
+    sort(leaders, leaders + blockCounter);
+    int current_block = 0;
 
-    int currentBlock = 1;
-    int currentQuad = 1;
-    int block_no = 1;
-    printf("Block %d\n", block_no++);
-    for(int i=1; i<blockCounter; i++) {
-        int block_changed = 0;
-       
-        while(currentQuad < nextquad && quads[currentQuad].blockno == i) {
-            printf("%-5d: %s\n", currentQuad, quads[currentQuad].text);
-            currentQuad++;
-            block_changed = 1;
+    for(int i=1; i<nextquad; i++) {
+        if(leaders[current_block] == i) {
+            if(i > 1) cout << endl;
+            cout << "Block " << ++current_block << endl;
         }
-        if(block_changed && i != blockCounter-1) {
-             printf("Block %d\n", block_no++);
-        }
+        cout << "   " << i << "   : " << quads[i] << endl;
     }
+
+    cout << endl;
+    cout << "   " << nextquad << "   :";
 
     return 0;
 } 
