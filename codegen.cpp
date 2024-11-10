@@ -6,7 +6,6 @@
 #include <iomanip>
 using namespace std;
 
-
 typedef struct _TargetQuad {
     string op;
     string arg1;
@@ -126,10 +125,17 @@ void generate_load(int quad_num){
     // this func is called when some arg is not already in a register
     // n = $2 : nothing to do, but store the quad number in store_ops
     // $2 is already in a register
-    
+
+    //free the register of result if it is already in use
+    int reg_res = find_register_with_var(quads[quad_num].result);
+    if(reg_res != -1){
+        free_register(reg_res);
+        free_reg_from_st(quads[quad_num].result);
+    }
+
     store_ops.push_back(quad_num);
     quad_to_target[quad_num] = nextTargetQuad;
-    if(!isNumber(quads[quad_num].arg1))  return;
+    if(!isNumber(quads[quad_num].arg1)) return;
 
     // n = 2:  2 will be loaded in a register
     int reg = find_free_register();
@@ -163,11 +169,11 @@ void generate_expr(int quad_num){
     // else store the result in a register
 
     quad_to_target[quad_num] = nextTargetQuad;
+    if(quads[quad_num].op == "*") cout<<quads[quad_num].op<<" "<<quads[quad_num].arg1<<" "<<quads[quad_num].arg2<<" "<<quads[quad_num].result<<endl;
+    
+    int Ra1, Ra2;
 
-    if(isNumber(quads[quad_num].arg1)){
-        T[nextTargetQuad].arg1 = quads[quad_num].arg1;
-    }
-    else{
+    if(!isNumber(quads[quad_num].arg1)){
         int reg1 = find_register_with_var(quads[quad_num].arg1);
         if(reg1 == -1){
             reg1 = find_free_register();
@@ -184,12 +190,11 @@ void generate_expr(int quad_num){
             T[nextTargetQuad].result = "R" + to_string(reg1);
             nextTargetQuad++;
         }
-        T[nextTargetQuad].arg1 = "R" + to_string(reg1);
+        // T[nextTargetQuad].arg1 = "R" + to_string(reg1);
+        Ra1 = reg1;
     }
-    if(isNumber(quads[quad_num].arg2)){
-        T[nextTargetQuad].arg2 = quads[quad_num].arg2;
-    }
-    else{
+
+    if(!isNumber(quads[quad_num].arg2)){
         int reg2 = find_register_with_var(quads[quad_num].arg2);
         if(reg2 == -1){
             reg2 = find_free_register();
@@ -206,7 +211,8 @@ void generate_expr(int quad_num){
             T[nextTargetQuad].result = "R" + to_string(reg2);
             nextTargetQuad++;
         }
-        T[nextTargetQuad].arg2 = "R" + to_string(reg2);
+        // T[nextTargetQuad].arg2 = "R" + to_string(reg2);
+        Ra2 = reg2;
     }
 
     if (quads[quad_num].op == "+") T[nextTargetQuad].op = "ADD";
@@ -214,6 +220,11 @@ void generate_expr(int quad_num){
     else if (quads[quad_num].op == "*") T[nextTargetQuad].op = "MUL";
     else if (quads[quad_num].op == "/") T[nextTargetQuad].op = "DIV";
     else if (quads[quad_num].op == "%") T[nextTargetQuad].op = "REM";
+
+    if(isNumber(quads[quad_num].arg1)) T[nextTargetQuad].arg1 = quads[quad_num].arg1;
+    else T[nextTargetQuad].arg1 = "R" + to_string(Ra1);
+    if(isNumber(quads[quad_num].arg2)) T[nextTargetQuad].arg2 = quads[quad_num].arg2;
+    else T[nextTargetQuad].arg2 = "R" + to_string(Ra2);
 
     int reg = find_register_with_var(quads[quad_num].result);
     if(reg == -1){
@@ -231,11 +242,27 @@ void generate_expr(int quad_num){
 }
 
 void generate_goto(int quad_num){
+    for (int j = 0; j < store_ops.size(); j++) {
+        int reg = find_register_with_var(quads[store_ops[j]].arg1); // find the register that contains the variable
+        T[nextTargetQuad].op = "ST";
+        T[nextTargetQuad].arg1 = "R" + to_string(reg);
+        T[nextTargetQuad].result = quads[store_ops[j]].result;
+        quad_to_target[store_ops[j]] = nextTargetQuad; // map the quad to the target label
+        nextTargetQuad++;
+    }
+    // free the registers
+    free_all_regs_from_st();
+    free_all_registers();
+    store_ops.clear();
+
     quad_to_target[quad_num] = nextTargetQuad;
     T[nextTargetQuad].op = "JMP";
     T[nextTargetQuad].result = quads[quad_num].result; 
     // todo: update the target label to quad_to_target[quads[quad_num].result]
     nextTargetQuad++;
+
+    // add the target leader
+    // Target_leaders[TargetCode_block_number++] = nextTargetQuad;
 }
 
 void generate_iffalse(int quad_num){
@@ -293,6 +320,9 @@ void generate_iffalse(int quad_num){
     else if (quads[quad_num].op == "<=") T[nextTargetQuad].op = "JGT";
     else if (quads[quad_num].op == "!=") T[nextTargetQuad].op = "JEQ";
     else if (quads[quad_num].op == "==") T[nextTargetQuad].op = "JNE";
+
+    // result is a target label
+    T[nextTargetQuad].result = quads[quad_num].result;
 
     nextTargetQuad++;
 }
@@ -408,18 +438,19 @@ void print_symbol_table() {
     }
 }
 
-void print_target_code() {
-    // Print header
-    cout << "-------------------------------------------------------------" << endl;
-    cout << "   Line   |   Op     |      Src1   |      Src2   |   Dst" << endl;
+void print_target_quad() {
+    // // Print header
+    // cout << "-------------------------------------------------------------" << endl;
+    // cout << "   Line   |   Op     |      Src1   |      Src2   |   Dst" << endl;
     
+    int curr_target_block = 0;
     for(int i=1; i<nextTargetQuad; i++) {
         // Print block number if this line is a leader
-        for(int j=0; j<TargetCode_block_number; j++) {
-            if(i == Target_leaders[j]) {
-                cout << "\nBlock " << j << ":\n";
-                break;
-            }
+        if(i == Target_leaders[curr_target_block]){
+            cout << "__________________________________________________________" << endl;
+            cout << "Block " << curr_target_block + 1 << endl;
+            cout << "   Line   |   Op     |      Src1   |      Src2   |   Dst" << endl;
+            curr_target_block++;
         }
         
         // Format each field with consistent width
@@ -457,12 +488,13 @@ int main(int argc, char* argv[]) {
     yyparse();
     leaders[0] = 1;
     sort(leaders, leaders + blockCounter);
-    print_intermediate_code(quads);
+    // print_intermediate_code(quads);
+    // cout << endl;
 
     generate_target_code();
 
-    cout << endl << "\ntarget code:" << endl;
-    print_target_code();
+    cout << "target code:" << endl;
+    print_target_quad();
 
     // cout << endl << "\nquads:" << endl;
     // print_quad(quads);
