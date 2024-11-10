@@ -62,6 +62,13 @@ void print_quad(Quad quads[]) {
     }
 }
 
+void print_symbol_table() {
+    for(int i=0; i<nextSymbol; i++) {
+        cout << "   " << i << "   : " << st[i].name << " " << st[i].is_temp << " " << st[i].reg << endl;
+    }
+}
+
+
 int main(int argc, char* argv[]) {
     // Parse command line arguments for number of registers
     int numRegisters = 5;  // default
@@ -77,6 +84,9 @@ int main(int argc, char* argv[]) {
 
     cout << endl << "\nquads:" << endl;
     print_quad(quads);
+
+    // cout << endl << "\nsymbol table:" << endl;
+    // print_symbol_table();
 
     return 0;
 } 

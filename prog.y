@@ -17,15 +17,39 @@ typedef struct _Quad {
     string result;
 } Quad;
 
+typedef struct _symtable {
+    string name;
+    int is_temp;
+    int reg;
+} Symtable;
+
+
 // Global variables
 Quad quads[1000]; // to store the quads
+Symtable st[1000]; // to store the symbol table
 int leaders[1000]; // to store the leaders
 int nextquad = 1; // to store the next quad number
 int tmpCounter = 1; // to store the temporary variable counter
 int blockCounter = 1; // to store the block counter
+int nextSymbol = 0; // to store next available symbol table entry
+
+// Add symbol to symbol table if not already present
+int add_symbol(string name, int is_temp) {
+    for(int i = 0; i < nextSymbol; i++) {
+        if(st[i].name == name) {
+            return i;
+        }
+    }
+    st[nextSymbol].name = name;
+    st[nextSymbol].is_temp = is_temp;
+    st[nextSymbol].reg = -1;
+    return nextSymbol++;
+}
 
 string gentmp() { // to generate a temporary variable
-    return "$" + to_string(tmpCounter++);
+    string tmp = "$" + to_string(tmpCounter++);
+    add_symbol(tmp, 1); // Add temporary to symbol table
+    return tmp;
 }
 
 void emit_goto(int jump_to);
@@ -70,6 +94,7 @@ stmt    : asgn
         ;
 
 asgn    : LP SET IDEN atom RP { // id = atom
+                                add_symbol(*$3, 0); // Add variable to symbol table
                                 emit_set("=", *$4, *$3);
                                 delete $3;
                                 delete $4;
@@ -104,6 +129,7 @@ bool    : LP reln atom atom RP { // iffalse (expr1 reln expr2) goto _
         ;
 
 atom    : IDEN                  {
+                                add_symbol(*$1, 0); // Add variable to symbol table
                                 $$ = $1;
                               }
         | NUMB                  {
