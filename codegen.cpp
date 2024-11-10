@@ -27,11 +27,111 @@ struct regDescriptor {
 regDescriptor* regs = nullptr; // array of registers
 int numRegisters; // number of registers
 
+/************* REGISTERS FUNCTIONS declarations *************/
+int find_spill_reg();
+int find_free_register();
+int find_register_with_var(const string& var);
+void free_register(int reg);
+void free_all_registers();
+int find_var_from_st(const string& var);
+void free_reg_from_st(const string& var);
+void free_all_regs_from_st();
+void update_reg_in_st(const string& var, int reg);
+
+/************* TARGET CODE GENERATION FUNCTIONS declarations *************/
+void generate_store();
+void generate_load(int quad_num);
+int gen_load_arg(const string& arg);
+void generate_expr(int quad_num);
+void generate_goto(int quad_num);
+void generate_iffalse(int quad_num);
+void update_target_labels();
+void generate_target_code();
+
+/************* AUXILIARY FUNCTIONS declarations *************/
+bool isNumber(const string& str);
+
+/************* PRINTING FUNCTIONS declarations *************/
+void print_intermediate_code(Quad quads[]);
+void print_quad(Quad quads[]);
+void print_symbol_table();
+void print_target_quad();
+void print_target_code();
+
+
+
+/************* MAIN FUNCTION *************/
+int main(int argc, char* argv[]) {
+    // Parse command line arguments for number of registers
+    numRegisters = 5;  // default
+    if (argc > 1) {
+        numRegisters = atoi(argv[1]);
+        if (numRegisters <= 0) numRegisters = 5;
+    }
+
+    // Resize regs array to requested size
+    delete[] regs;
+    regs = new regDescriptor[numRegisters + 1];
+    for(int i=1; i<=numRegisters; i++) {
+        regs[i].isfree = 1;
+        regs[i].name = "";
+    }
+
+    // parse the input file
+    yyparse();
+    leaders[0] = 1;
+    sort(leaders, leaders + blockCounter);
+    
+    // generate the target code
+    generate_target_code();
+
+    // print the target code
+    print_target_code();
+
+    cout << "\n\ntarget code quads:" << endl;
+    print_target_quad();
+    cout << endl;
+
+    cout << "\n\nintermediate code:" << endl;
+    print_intermediate_code(quads);
+    cout << endl;
+
+
+    cout << "\n\nintermediate code quads:" << endl;
+    print_quad(quads);
+    cout << endl;
+
+    // cout << "\nsymbol table:" << endl;
+    // print_symbol_table();
+
+    return 0;
+} 
+
 
 /****************** REGISTERS FUNCTIONS ******************/
+int find_spill_reg(){
+    for(int i = 1; i <= numRegisters; i++){
+        if(regs[i].name[0] == '$') {
+            // free the register
+            free_register(i);
+            return i;
+        }
+    }
+    for(int i = 0; i < nextSymbol; i++) {
+        if(st[i].reg != -1 && regs[st[i].reg].name == st[i].name) {
+            // free the register
+            free_register(st[i].reg);
+            return st[i].reg;
+        }
+    }
+    // no spill register found
+    cout << "More registers needed" << endl;
+    exit(0);
+}
+
 int find_free_register() { // returns the index of the free register
     for (int i = 1; i <= numRegisters; i++) if (regs[i].isfree) return i;
-    return -1;
+    return find_spill_reg();
 }
 
 int find_register_with_var(const string& var) { // finds the register that contains the variable else returns -1
@@ -70,17 +170,8 @@ void update_reg_in_st(const string& var, int reg) { // updates the register of a
     st[var_idx].reg = reg;
 }
 
-// auxiliary function 
-bool isNumber(const string& str) { // checks if the string is a number
-    if (str.empty()) return false;
-    char* end = nullptr;
-    strtol(str.c_str(), &end, 10);
-    return (*end == 0);
-}
-
 
 /****************** TARGET CODE QUAD FUNCTIONS ******************/
-
 void generate_store(){ // at the end of a block
     // the arg1 will already be in a register, to be stored in a memory
     for (int j = 0; j < store_ops.size(); j++) {
@@ -134,9 +225,7 @@ void generate_load(int quad_num){
         T[nextTargetQuad].op = "LD";
         // store the reg no in the sym tab entry of the var
         int var_idx = find_var_from_st(quads[quad_num].arg1);
-        if(var_idx != -1){
-            st[var_idx].reg = reg;
-        }
+        if(var_idx != -1) st[var_idx].reg = reg;
     }
     T[nextTargetQuad].arg1 = quads[quad_num].arg1;
     T[nextTargetQuad].result = "R" + to_string(reg);
@@ -282,6 +371,7 @@ void generate_target_code() {
     update_target_labels();
 }
 
+
 /************* PRINTING FUNCTIONS *************/
 void print_intermediate_code(Quad quads[]) {
     int current_block = 0;
@@ -317,6 +407,8 @@ void print_quad(Quad quads[]) {
         cout << "   " << setw(7) << quads[i].arg2 << "   |";
         cout << "   " << quads[i].result << endl;
     }
+    cout << endl;   
+    cout << "   " << setw(4) << nextquad << "   :";
 }
 
 void print_symbol_table() {
@@ -348,6 +440,8 @@ void print_target_quad() {
         cout << "   " << setw(7) << T[i].arg2 << "   |";
         cout << "   " << T[i].result << endl;
     }
+    cout << endl;
+    cout << "   " << setw(4) << nextTargetQuad << "   :";
 }
 
 void print_target_code(){
@@ -371,49 +465,10 @@ void print_target_code(){
    cout<< " " << setw(4) << nextTargetQuad << "   :" << endl;
 }
 
-/************* MAIN FUNCTION *************/
-int main(int argc, char* argv[]) {
-    // Parse command line arguments for number of registers
-    numRegisters = 5;  // default
-    if (argc > 1) {
-        numRegisters = atoi(argv[1]);
-        if (numRegisters <= 0) numRegisters = 5;
-    }
-
-    // Resize regs array to requested size
-    delete[] regs;
-    regs = new regDescriptor[numRegisters + 1];
-    for(int i=1; i<=numRegisters; i++) {
-        regs[i].isfree = 1;
-        regs[i].name = "";
-    }
-
-    // parse the input file
-    yyparse();
-    leaders[0] = 1;
-    sort(leaders, leaders + blockCounter);
-    
-    generate_target_code();
-
-    print_target_code();
-
-
-
-    // cout << "\ntarget code quads:" << endl;
-    // print_target_quad();
-    // cout << endl;
-
-    // cout << "\nintermediate code:" << endl;
-    // print_intermediate_code(quads);
-    // cout << endl;
-
-
-    // cout << "\nintermediate code quads:" << endl;
-    // print_quad(quads);
-    // cout << endl;
-
-    // cout << "\nsymbol table:" << endl;
-    // print_symbol_table();
-
-    return 0;
-} 
+// auxiliary function 
+bool isNumber(const string& str) { // checks if the string is a number
+    if (str.empty()) return false;
+    char* end = nullptr;
+    strtol(str.c_str(), &end, 10);
+    return (*end == 0);
+}
