@@ -15,9 +15,8 @@ typedef struct _TargetQuad {
 
 TargetQuad T[1000];
 int nextTargetQuad = 1;
-int Target_leaders[1000];
 int TargetCode_block_number = 0;
-int quad_to_target[1000]; // Map from quad labels to target labels
+vector<int> Target_code_blocks;
 
 struct regDescriptor {
     bool isfree;
@@ -39,27 +38,6 @@ int find_register_with_var(const string& var) { // finds the register that conta
     }
     return -1;
 }
-
-// int load_reg(const string& var) { // returns a reg idx for the variable
-//     int reg = find_free_register();
-//     if (reg != -1) {
-//         regs[reg].isfree = false;
-//         regs[reg].name = var;
-//         // // store the quad in the target code
-//         // T[nextTargetQuad].op = "LD";
-//         // T[nextTargetQuad].arg1 = var;
-//         // T[nextTargetQuad].result = "R" + to_string(reg);
-//         // //update the symbol table
-//         // int var_idx = find_var_from_st(var);
-//         // if(var_idx != -1){
-//         //     st[var_idx].reg = reg;
-//         // }
-//         nextTargetQuad++;
-//         return reg;
-//     }
-//     cout << "Spilling variable " << var << endl;
-//     return -1;
-// }
 
 void free_register(int reg) { // frees the register
     regs[reg].isfree = true;
@@ -109,16 +87,12 @@ void generate_store(){ // at the end of a block
         T[nextTargetQuad].op = "ST";
         T[nextTargetQuad].arg1 = "R" + to_string(reg);
         T[nextTargetQuad].result = quads[store_ops[j]].result;
-        quad_to_target[store_ops[j]] = nextTargetQuad; // map the quad to the target label
         nextTargetQuad++;
     }
     // free the registers
     free_all_regs_from_st();
     free_all_registers();
     store_ops.clear();
-
-    // add the target leader
-    Target_leaders[TargetCode_block_number++] = nextTargetQuad;
 }
 
 void generate_load(int quad_num){
@@ -134,7 +108,6 @@ void generate_load(int quad_num){
     }
 
     store_ops.push_back(quad_num);
-    quad_to_target[quad_num] = nextTargetQuad;
     if(!isNumber(quads[quad_num].arg1)) return;
 
     // n = 2:  2 will be loaded in a register
@@ -167,10 +140,7 @@ void generate_expr(int quad_num){
     // then store the result in the symbol table
     // if the result is already in a register, then just perform the operation
     // else store the result in a register
-
-    quad_to_target[quad_num] = nextTargetQuad;
-    if(quads[quad_num].op == "*") cout<<quads[quad_num].op<<" "<<quads[quad_num].arg1<<" "<<quads[quad_num].arg2<<" "<<quads[quad_num].result<<endl;
-    
+        
     int Ra1, Ra2;
 
     if(!isNumber(quads[quad_num].arg1)){
@@ -215,6 +185,8 @@ void generate_expr(int quad_num){
         Ra2 = reg2;
     }
 
+    
+
     if (quads[quad_num].op == "+") T[nextTargetQuad].op = "ADD";
     else if (quads[quad_num].op == "-") T[nextTargetQuad].op = "SUB";
     else if (quads[quad_num].op == "*") T[nextTargetQuad].op = "MUL";
@@ -247,7 +219,6 @@ void generate_goto(int quad_num){
         T[nextTargetQuad].op = "ST";
         T[nextTargetQuad].arg1 = "R" + to_string(reg);
         T[nextTargetQuad].result = quads[store_ops[j]].result;
-        quad_to_target[store_ops[j]] = nextTargetQuad; // map the quad to the target label
         nextTargetQuad++;
     }
     // free the registers
@@ -255,7 +226,6 @@ void generate_goto(int quad_num){
     free_all_registers();
     store_ops.clear();
 
-    quad_to_target[quad_num] = nextTargetQuad;
     T[nextTargetQuad].op = "JMP";
     T[nextTargetQuad].result = quads[quad_num].result; 
     // todo: update the target label to quad_to_target[quads[quad_num].result]
@@ -266,36 +236,30 @@ void generate_goto(int quad_num){
 }
 
 void generate_iffalse(int quad_num){
-    // op is some reln
-    // if some arg is not in a register, load it in a register
-    // then perform the operation and store the result in a register
-    // then store the result in the symbol table
-    // if the result is already in a register, then just perform the operation
-    // else store the result in a register
-    quad_to_target[quad_num] = nextTargetQuad;
+    int Ra1, Ra2;
 
-    int reg1 = find_register_with_var(quads[quad_num].arg1);
-    if(reg1 == -1){
-        reg1 = find_free_register();
-        regs[reg1].isfree = false;
-        regs[reg1].name = quads[quad_num].arg1;
-        // update the symbol table
-        int var_idx = find_var_from_st(quads[quad_num].arg1);
-        if(var_idx != -1){
-            st[var_idx].reg = reg1;
+
+    if(!isNumber(quads[quad_num].arg1)){
+        int reg1 = find_register_with_var(quads[quad_num].arg1);
+        if(reg1 == -1){
+            reg1 = find_free_register();
+            regs[reg1].isfree = false;
+            regs[reg1].name = quads[quad_num].arg1;
+            // update the symbol table
+            int var_idx = find_var_from_st(quads[quad_num].arg1);
+            if(var_idx != -1){
+                st[var_idx].reg = reg1;
+            }
+            // load the arg1 in a register
+            T[nextTargetQuad].op = "LD";
+            T[nextTargetQuad].arg1 = quads[quad_num].arg1;
+            T[nextTargetQuad].result = "R" + to_string(reg1);
+            nextTargetQuad++;
         }
-        // load the arg1 in a register
-        T[nextTargetQuad].op = "LD";
-        T[nextTargetQuad].arg1 = quads[quad_num].arg1;
-        T[nextTargetQuad].result = "R" + to_string(reg1);
-        nextTargetQuad++;
+        Ra1 = reg1;
     }
-    T[nextTargetQuad].arg1 = "R" + to_string(reg1);
 
-    if(isNumber(quads[quad_num].arg2)){
-        T[nextTargetQuad].arg2 = quads[quad_num].arg2;
-    }
-    else{
+    if(!isNumber(quads[quad_num].arg2)){
         int reg2 = find_register_with_var(quads[quad_num].arg2);
         if(reg2 == -1){
             reg2 = find_free_register();
@@ -312,8 +276,10 @@ void generate_iffalse(int quad_num){
             T[nextTargetQuad].result = "R" + to_string(reg2);
             nextTargetQuad++;
         }
-        T[nextTargetQuad].arg2 = "R" + to_string(reg2);
+        Ra2 = reg2;
     }
+
+
     if (quads[quad_num].op == ">") T[nextTargetQuad].op = "JLE";
     else if (quads[quad_num].op == "<") T[nextTargetQuad].op = "JGE";
     else if (quads[quad_num].op == ">=") T[nextTargetQuad].op = "JLT";
@@ -321,12 +287,47 @@ void generate_iffalse(int quad_num){
     else if (quads[quad_num].op == "!=") T[nextTargetQuad].op = "JEQ";
     else if (quads[quad_num].op == "==") T[nextTargetQuad].op = "JNE";
 
-    // result is a target label
-    T[nextTargetQuad].result = quads[quad_num].result;
+    if(isNumber(quads[quad_num].arg1)) T[nextTargetQuad].arg1 = quads[quad_num].arg1;
+    else T[nextTargetQuad].arg1 = "R" + to_string(Ra1);
+    if(isNumber(quads[quad_num].arg2)) T[nextTargetQuad].arg2 = quads[quad_num].arg2;
+    else T[nextTargetQuad].arg2 = "R" + to_string(Ra2);
 
+    T[nextTargetQuad].result = quads[quad_num].result;
     nextTargetQuad++;
 }
 
+void update_target_labels(){
+    // Iterate through all target code instructions
+    for(int i = 0; i < nextTargetQuad; i++) {
+        // Check if instruction is a jump/branch
+        if(T[i].op == "JMP" || T[i].op == "JGT" || T[i].op == "JGE" || 
+           T[i].op == "JLT" || T[i].op == "JLE" || T[i].op == "JEQ" || T[i].op == "JNE") {
+            
+            // Get the quad label from result field
+            string quad_label = T[i].result;
+            int quad_num = stoi(quad_label);
+            
+            int block_num = 0;
+            if(quad_num == nextquad) {
+                block_num = TargetCode_block_number;
+            }
+            else{
+                // Find which block this quad belongs to
+                while(block_num <= TargetCode_block_number && quad_num >= leaders[block_num]) {
+                block_num++;
+                }
+                block_num--;
+            }
+            
+            // Update jump target to corresponding target code block
+            T[i].result = to_string(Target_code_blocks[block_num]);
+            if(i==42) {
+                cout << "block_num: " << block_num << endl;
+                cout << "Target_code_blocks[block_num]: " << Target_code_blocks[block_num] << endl;
+            }
+        }
+    }
+}
 
 // generates the target code
 void generate_target_code() {
@@ -335,6 +336,8 @@ void generate_target_code() {
         if(qn==leaders[current_block]){
             generate_store();
             current_block++;
+            Target_code_blocks.push_back(nextTargetQuad);
+            TargetCode_block_number++;
         }
 
         if(quads[qn].op == "="){
@@ -351,10 +354,9 @@ void generate_target_code() {
         }
     }
 
-    //store at last 
-    generate_store();
-
+    Target_code_blocks.push_back(nextTargetQuad);
     // now update the target labels
+    update_target_labels();
 }
 
 
@@ -446,7 +448,7 @@ void print_target_quad() {
     int curr_target_block = 0;
     for(int i=1; i<nextTargetQuad; i++) {
         // Print block number if this line is a leader
-        if(i == Target_leaders[curr_target_block]){
+        if(i == Target_code_blocks[curr_target_block]){
             cout << "__________________________________________________________" << endl;
             cout << "Block " << curr_target_block + 1 << endl;
             cout << "   Line   |   Op     |      Src1   |      Src2   |   Dst" << endl;
@@ -480,11 +482,6 @@ int main(int argc, char* argv[]) {
         regs[i].name = "";
     }
 
-    // Initialize quad_to_target array with -1
-    for(int i=0; i<1000; i++) {
-        quad_to_target[i] = -1;
-    }
-
     yyparse();
     leaders[0] = 1;
     sort(leaders, leaders + blockCounter);
@@ -492,6 +489,12 @@ int main(int argc, char* argv[]) {
     // cout << endl;
 
     generate_target_code();
+
+
+    // cout << "target code blocks:" << endl;
+    // for(int i=0; i<=TargetCode_block_number; i++){
+    //     cout << "Block " << i+1 << " : " << Target_code_blocks[i] << endl;
+    // }
 
     cout << "target code:" << endl;
     print_target_quad();
