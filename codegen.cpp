@@ -294,6 +294,8 @@ void generate_iffalse(int quad_num){
     if(!isNumber(quads[quad_num].arg1)) Ra1 = gen_load_arg(quads[quad_num].arg1);
     if(!isNumber(quads[quad_num].arg2)) Ra2 = gen_load_arg(quads[quad_num].arg2);
 
+    generate_store();
+
     // branch instruction
     if (quads[quad_num].op == ">") T[nextTargetQuad].op = "JLE";
     else if (quads[quad_num].op == "<") T[nextTargetQuad].op = "JGE";
