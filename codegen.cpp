@@ -75,8 +75,12 @@ bool isNumber(const string& str) { // checks if the string is a number
 void generate_store(){ // at the end of a block
     // the arg1 will already be in a register, to be stored in a memory
     for (int j = 0; j < store_ops.size(); j++) {
-        int var_idx = find_var_from_st(quads[store_ops[j]].arg1);
-        int reg = st[var_idx].reg; // find the register that contains the variable
+        int reg;
+        if(isNumber(quads[store_ops[j]].arg1)) reg = find_register_with_var(quads[store_ops[j]].arg1);
+        else {
+            int var_idx = find_var_from_st(quads[store_ops[j]].arg1);
+            reg = st[var_idx].reg;
+        }
         T[nextTargetQuad].op = "ST";
         T[nextTargetQuad].arg1 = "R" + to_string(reg);
         T[nextTargetQuad].result = quads[store_ops[j]].result;
@@ -89,7 +93,6 @@ void generate_store(){ // at the end of a block
 }
 
 void generate_load(int quad_num){
-    // n = $2: $2 is already in a register
 
     //free the register of result if it is already in use
     int reg_res = find_register_with_var(quads[quad_num].result);
@@ -98,11 +101,16 @@ void generate_load(int quad_num){
         free_reg_from_st(quads[quad_num].result);
     }
 
+    // store the quad number of the load operation - to be used at the end of the block
     store_ops.push_back(quad_num);
+
+    // n = $2(or m): $2 is already in a register
     if(!isNumber(quads[quad_num].arg1)) {
-        int reg_arg1 = find_register_with_var(quads[quad_num].arg1);
+        int reg_arg1 = find_register_with_var(quads[quad_num].arg1); // reg of the arg1
+        // update the register descriptor for storing the result
         regs[reg_arg1].isfree = false;
         regs[reg_arg1].name = quads[quad_num].result;
+        // update reg of arg1 in the symbol table
         int var_idx = find_var_from_st(quads[quad_num].arg1);
         st[var_idx].reg = reg_arg1;
         return;
@@ -112,9 +120,7 @@ void generate_load(int quad_num){
     int reg = find_free_register();
     regs[reg].isfree = false;
     regs[reg].name = quads[quad_num].arg1;
-    if(isNumber(quads[quad_num].arg1)){
-        T[nextTargetQuad].op = "LDI";
-    }
+    if(isNumber(quads[quad_num].arg1))T[nextTargetQuad].op = "LDI";
     else{
         T[nextTargetQuad].op = "LD";
         // store the reg no in the sym tab entry of the var
