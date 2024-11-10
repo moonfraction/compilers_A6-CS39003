@@ -10,8 +10,15 @@ extern void yyerror(const char *s);
 extern int yylex(void);
 extern int yyparse();
 
+typedef struct _Quad {
+    string op;
+    string arg1;
+    string arg2;
+    string result;
+} Quad;
+
 // Global variables
-string quads[1000]; // to store the quads
+Quad quads[1000]; // to store the quads
 int leaders[1000]; // to store the leaders
 int nextquad = 1; // to store the next quad number
 int tmpCounter = 1; // to store the temporary variable counter
@@ -147,26 +154,36 @@ void add_leader(int leader) {
 }
 
 void backpatch(int quad_to_patch, int target_quad) {
-    size_t pos = quads[quad_to_patch].find('_');
-    if (pos != string::npos) {
-        quads[quad_to_patch].replace(pos, 1, to_string(target_quad));
-    }
+    quads[quad_to_patch].result = to_string(target_quad);
 }
 
 void emit_goto(int jump_to) {
-    quads[nextquad++] = "goto " + to_string(jump_to);
+    quads[nextquad].op = "goto";
+    quads[nextquad].result = to_string(jump_to);
+    nextquad++;
 }
 
 void emit_set(string op, string arg, string result) {
-    quads[nextquad++] = result + " = " + arg;
+    quads[nextquad].op = op;
+    quads[nextquad].arg1 = arg;
+    quads[nextquad].result = result;
+    nextquad++;
 }
 
 void emit_bool(string op, string arg1, string arg2) {
-    quads[nextquad++] = "iffalse (" + arg1 + " " + op + " " + arg2 + ") goto _";
+    quads[nextquad].op = op;
+    quads[nextquad].arg1 = arg1;
+    quads[nextquad].arg2 = arg2;
+    quads[nextquad].result = "_";
+    nextquad++;
 }
 
 void emit_expr(string op, string arg1, string arg2, string result) {
-    quads[nextquad++] = result + " = " + arg1 + " " + op + " " + arg2;
+    quads[nextquad].op = op;
+    quads[nextquad].arg1 = arg1;
+    quads[nextquad].arg2 = arg2;
+    quads[nextquad].result = result;
+    nextquad++;
 }
 
 void yyerror(const char *s) {
