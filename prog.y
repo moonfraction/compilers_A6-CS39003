@@ -114,7 +114,7 @@ loop    : LP LOOP WHILE m bool list RP m {
 
                                 backpatch($5, $8+1); // backpatch the target of the bool
                                 add_leader($5+1);
-                                add_leader($8+1);
+                                add_leader($8+1); // leader after the goto
                               }
         ;
 
