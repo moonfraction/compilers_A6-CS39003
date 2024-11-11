@@ -27,10 +27,8 @@ typedef struct _symtable {
 // Global variables
 Quad quads[1000]; // to store the quads
 Symtable st[1000]; // to store the symbol table
-int leaders[1000]; // to store the leaders
 int nextquad = 1; // to store the next quad number
 int tmpCounter = 1; // to store the temporary variable counter
-int blockCounter = 1; // to store the block counter
 int nextSymbol = 0; // to store next available symbol table entry
 
 // Add symbol to symbol table if not already present
@@ -57,7 +55,6 @@ void emit_set(string op, string arg, string result);
 void emit_bool(string op, string arg1, string arg2);
 void emit_expr(string op, string arg1, string arg2, string result);
 void backpatch(int quad_no, int target_quad);
-void add_leader(int leader);
 %}
 
 %union {
@@ -103,24 +100,17 @@ asgn    : LP SET IDEN atom RP { // id = atom
 
 cond    : LP WHEN bool list RP m {
                                     backpatch($3, $6); // backpatch the target of the bool
-                                    add_leader($3+1);
-                                    add_leader($6);
                               }
         ;
 
 loop    : LP LOOP WHILE m bool list RP m {
                                 emit_goto($4); // goto $4
-                                add_leader($4);
-
                                 backpatch($5, $8+1); // backpatch the target of the bool
-                                add_leader($5+1);
-                                add_leader($8+1); // leader after the goto
                               }
         ;
 
 bool    : LP reln atom atom RP { // iffalse (expr1 reln expr2) goto _
                                 emit_bool(*$2, *$3, *$4);
-                                // add_leader(nextquad-2);
                                 $$ = nextquad-1;
                                 delete $2;
                                 delete $3;
@@ -172,12 +162,6 @@ reln    : EQ                    { $$ = new string("=="); }
         | GE                    { $$ = new string(">="); }
         ;
 %%
-
-void add_leader(int leader) {
-    if(leaders[blockCounter-1] != leader) {
-        leaders[blockCounter++] = leader;
-    }
-}
 
 void backpatch(int quad_to_patch, int target_quad) {
     quads[quad_to_patch].result = to_string(target_quad);

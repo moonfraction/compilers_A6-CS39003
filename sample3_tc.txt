@@ -1,0 +1,164 @@
+
+Block 1
+	1	: LDI R1 +2024
+	2	: LDI R2 0
+	3	: ST x R1
+	4	: ST n R2
+
+Block 2
+	5	: LD R1 x
+	6	: JEQ R1 1 24
+
+Block 3
+	7	: LD R1 x
+	8	: REM R2 R1 2
+	9	: JNE R2 1 17
+
+Block 4
+	10	: LD R1 x
+	11	: MUL R2 3 R1
+	12	: ADD R3 R2 1
+	13	: LD R1 n
+	14	: ADD R4 R1 1
+	15	: ST x R3
+	16	: ST n R4
+
+Block 5
+	17	: LD R1 x
+	18	: DIV R2 R1 2
+	19	: LD R1 n
+	20	: ADD R3 R1 1
+	21	: ST x R2
+	22	: ST n R3
+	23	: JMP 5
+
+Block 6
+	24	: LD R1 n
+	25	: JNE R1 0 28
+
+Block 7
+	26	: LDI R1 0
+	27	: ST _F_ R1
+
+Block 8
+	28	: LD R1 n
+	29	: JNE R1 1 32
+
+Block 9
+	30	: LDI R1 1
+	31	: ST _F_ R1
+
+Block 10
+	32	: LD R1 n
+	33	: JLT R1 2 53
+
+Block 11
+	34	: LDI R1 -2
+	35	: LDI R2 1
+	36	: LDI R3 0
+	37	: ST m R1
+	38	: ST Fprev1 R2
+	39	: ST Fprev2 R3
+
+Block 12
+	40	: LD R1 m
+	41	: LD R2 n
+	42	: JGT R1 R2 53
+
+Block 13
+	43	: LD R1 Fprev1
+	44	: LD R2 Fprev2
+	45	: ADD R3 R1 R2
+	46	: LD R2 m
+	47	: ADD R4 R2 1
+	48	: ST Fprev2 R1
+	49	: ST Fprev1 R3
+	50	: ST _F_ R3
+	51	: ST m R4
+	52	: JMP 40
+
+Block 14
+	53	: LD R1 a
+	54	: MUL R2 R1 2
+	55	: LD R3 b
+	56	: REM R4 R3 2
+	57	: ADD R5 R2 R4
+	58	: MUL R1 R1 R3
+	59	: ADD R3 R1 -1
+	60	: DIV R1 R5 R3
+	61	: LD R2 a
+	62	: LD R3 b
+	63	: MUL R2 R2 R3
+	64	: LD R3 a
+	65	: LD R4 b
+	66	: ADD R3 R3 R4
+	67	: ADD R4 R2 R3
+	68	: LD R2 c
+	69	: ST y R1
+	70	: JNE R2 R4 73
+
+Block 15
+	71	: LDI R1 1
+	72	: ST c R1
+
+Block 16
+	73	: ADD R1 1 2
+	74	: ADD R2 3 4
+	75	: ADD R3 5 6
+	76	: ADD R4 7 8
+	77	: ADD R5 9 10
+	78	: ST $18 R1
+	79	: ADD R1 11 12
+	80	: ST $23 R1
+	81	: ADD R1 13 14
+	82	: ST $24 R1
+	83	: ADD R1 15 16
+	84	: ST $25 R1
+	85	: ADD R1 17 18
+	86	: ST $26 R1
+	87	: ADD R1 19 20
+	88	: ST $27 R1
+	89	: ADD R1 21 22
+	90	: ST $28 R1
+	91	: ADD R1 23 24
+	92	: ST $29 R1
+	93	: ADD R1 25 26
+	94	: ST $30 R1
+	95	: ADD R1 27 28
+	96	: ST $31 R1
+	97	: ADD R1 29 30
+	98	: ST $32 R1
+	99	: ADD R1 31 32
+	100	: ST $33 R1
+	101	: LD R1 $32
+	102	: ST $19 R2
+	103	: LD R2 $33
+	104	: ADD R1 R1 R2
+	105	: LD R2 $31
+	106	: ADD R2 R2 R1
+	107	: LD R1 $30
+	108	: ADD R1 R1 R2
+	109	: LD R2 $29
+	110	: ADD R2 R2 R1
+	111	: LD R1 $28
+	112	: ADD R1 R1 R2
+	113	: LD R2 $27
+	114	: ADD R2 R2 R1
+	115	: LD R1 $26
+	116	: ADD R1 R1 R2
+	117	: LD R2 $25
+	118	: ADD R2 R2 R1
+	119	: LD R1 $24
+	120	: ADD R1 R1 R2
+	121	: LD R2 $23
+	122	: ADD R2 R2 R1
+	123	: ADD R1 R5 R2
+	124	: ADD R1 R4 R1
+	125	: ADD R1 R3 R1
+	126	: LD R2 $19
+	127	: ADD R2 R2 R1
+	128	: LD R1 $18
+	129	: ADD R1 R1 R2
+	130	: ST long R1
+
+	131	:	

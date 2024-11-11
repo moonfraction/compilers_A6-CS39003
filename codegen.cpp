@@ -16,8 +16,10 @@ typedef struct _TargetQuad {
 TargetQuad T[1000]; // target code quads
 int nextTargetQuad = 1; // next quad number for target code
 int TargetCode_block_number = 0; // number of target code blocks
-vector<int> Target_code_blocks; // target code quad numbers where that block starts
+int Target_code_blocks[1000]; // target code quad numbers where that block starts
 vector<int> store_ops; // stores the quad numbers of the Store operations i.e. "=" operations
+int leaders[1000]; // to store the leaders
+int blockCounter = 1; // to store the block counter
 
 // registers descriptor
 struct regDescriptor {
@@ -50,6 +52,7 @@ void generate_target_code();
 
 /************* AUXILIARY FUNCTIONS declarations *************/
 bool isNumber(const string& str);
+void identify_leaders();
 
 /************* PRINTING FUNCTIONS declarations *************/
 void print_intermediate_code(Quad quads[]);
@@ -57,6 +60,7 @@ void print_quad(Quad quads[]);
 void print_symbol_table();
 void print_target_quad();
 void print_target_code();
+void print_leaders();
 
 
 
@@ -79,13 +83,18 @@ int main(int argc, char* argv[]) {
 
     // parse the input file
     yyparse();
-    leaders[0] = 1;
+
+    identify_leaders();
     sort(leaders, leaders + blockCounter);
+    //remove duplicates
+    blockCounter = unique(leaders, leaders + blockCounter) - leaders;
+    // cout<<"Block Counter: "<<blockCounter<<endl;
+    // print_leaders();
     
     // generate the target code
     generate_target_code();
 
-    // print the target code
+    //print the target code
     print_target_code();
 
     cout << "\n\ntarget code quads:" << endl;
@@ -110,15 +119,23 @@ int main(int argc, char* argv[]) {
 
 /****************** REGISTERS FUNCTIONS ******************/
 int find_spill_reg(){
-    for(int i = 1; i <= numRegisters; i++){
-        if(regs[i].name[0] == '$') {
-            // free the register
-            free_register(i);
-            return i;
-        }
-    }
+    // for(int i = 1; i <= numRegisters; i++){
+    //     if(regs[i].name[0] == '$') {
+    //         // free the register
+    //         free_register(i);
+    //         return i;
+    //     }
+    // }
     for(int i = 0; i < nextSymbol; i++) {
-        if(st[i].reg != -1 && regs[st[i].reg].name == st[i].name) {
+        if(st[i].reg != -1 && regs[st[i].reg].name != st[i].name) {
+            // if the register is not the same as the variable name, then it is a spill register
+            // store the regs[st[i].reg].name
+            string var_name = regs[st[i].reg].name;
+            // store varname at st[i].reg
+            T[nextTargetQuad].op = "ST";
+            T[nextTargetQuad].arg1 = "R" + to_string(st[i].reg);
+            T[nextTargetQuad].result = var_name;
+            nextTargetQuad++;
             // free the register
             free_register(st[i].reg);
             return st[i].reg;
@@ -126,6 +143,7 @@ int find_spill_reg(){
     }
     // no spill register found
     cout << "More registers needed" << endl;
+    cout<<"use 'make run REGS=N' to generate output file with N registers (default: REGS=5)"<<endl;
     exit(0);
 }
 
@@ -273,6 +291,9 @@ void generate_expr(int quad_num){
     int reg = find_register_with_var(quads[quad_num].result);
     if(reg == -1){ // if not already in a register
         reg = find_free_register();
+        // update the register descriptor for storing the result
+        regs[reg].isfree = false;
+        regs[reg].name = quads[quad_num].result;
         update_reg_in_st(quads[quad_num].result, reg);
     }
     T[nextTargetQuad].result = "R" + to_string(reg);
@@ -317,6 +338,7 @@ void generate_iffalse(int quad_num){
 
 void update_target_labels(){
     // Iterate through all target code instructions
+    // cout<<"\nUpdating target labels"<<endl;
     for(int i = 0; i < nextTargetQuad; i++) {
         // Check if instruction is a jump(conditional or unconditional)
         if(T[i].op == "JMP" || T[i].op == "JGT" || T[i].op == "JGE" || 
@@ -324,9 +346,10 @@ void update_target_labels(){
             
             // Get the quad label from result field
             string quad_label = T[i].result; // intcode quad goto label
+            // cout<<i<<":: "<<quad_label<<":: ";
             int quad_num = stoi(quad_label);
             
-            int block_num = 0; // goto block number
+            int block_num = 1; // goto block number
             if(quad_num == nextquad) { // if goto is the last instruction
                 block_num = TargetCode_block_number;
             }
@@ -335,23 +358,24 @@ void update_target_labels(){
                 while(block_num <= TargetCode_block_number && quad_num >= leaders[block_num]) block_num++;
                 block_num--; // since the loop increments it one extra time
             }
+            // cout<<block_num<<":: "<<Target_code_blocks[block_num]<<endl;
             
             // Update jump target to corresponding target code block start quad number
             T[i].result = to_string(Target_code_blocks[block_num]);
         }
     }
+    // cout<<endl;
 }
 
 /****************** TARGET CODE GENERATION ******************/
 void generate_target_code() {
-    int current_block = 0; // current target code block number
+    int current_block = 1; // current target code block number
     for(int qn = 1; qn < nextquad; qn++){ // iterate through all the quads
         if(qn==leaders[current_block]){ // if the quad is a leader
             // store the variables in memory before starting a new block
             generate_store(); 
-            current_block++;
             // store the target code quad number where the current block starts
-            Target_code_blocks.push_back(nextTargetQuad); 
+            Target_code_blocks[current_block++] = nextTargetQuad;
             TargetCode_block_number++; // increment the target code block number
         }
 
@@ -368,7 +392,7 @@ void generate_target_code() {
     }
     generate_store();
 
-    Target_code_blocks.push_back(nextTargetQuad);
+    Target_code_blocks[++current_block] = nextTargetQuad;
 
 
     // update the target labels
@@ -378,11 +402,11 @@ void generate_target_code() {
 
 /************* PRINTING FUNCTIONS *************/
 void print_intermediate_code(Quad quads[]) {
-    int current_block = 0;
+    int current_block = 1;
     for(int i=1; i<nextquad; i++) {
         if(leaders[current_block] == i) {
             if(i > 1) cout << endl;
-            cout << "Block " << ++current_block << endl;
+            cout << "Block " << current_block++ << endl;
         }
         if (quads[i].op == "=") cout << "   " << i << "   : " << quads[i].result << " = " << quads[i].arg1 << endl;
         else if (quads[i].op == "goto") cout << "   " << i << "   : goto " << quads[i].result << endl;
@@ -395,14 +419,13 @@ void print_intermediate_code(Quad quads[]) {
 }
 
 void print_quad(Quad quads[]) {
-    int curr_block = 0;
+    int curr_block = 1;
     for(int i=1; i<nextquad; i++) {
         // Print block number if this line is a leader
         if(i == leaders[curr_block]){
             cout << "__________________________________________________________" << endl;
-            cout << "Block " << curr_block + 1 << endl;
+            cout << "Block " << curr_block ++ << endl;
             cout << "   Line   |     Op   |    Arg1     |     Arg2    |   Result" << endl;
-            curr_block++;
         }
         
         cout << "   " << setw(4) << i << "   |";
@@ -428,14 +451,13 @@ void print_symbol_table() {
 }
 
 void print_target_quad() {
-    int curr_target_block = 0;
+    int curr_target_block = 1;
     for(int i=1; i<nextTargetQuad; i++) {
         // Print block number if this line is a leader
         if(i == Target_code_blocks[curr_target_block]){
             cout << "__________________________________________________________" << endl;
-            cout << "Block " << curr_target_block + 1 << endl;
+            cout << "Block " << curr_target_block ++<< endl;
             cout << "   Line   |     Op   |      Src1   |      Src2   |   Dst" << endl;
-            curr_target_block++;
         }
         
         cout << "   " << setw(4) << i << "   |";
@@ -449,11 +471,11 @@ void print_target_quad() {
 }
 
 void print_target_code(){
-   int curr_target_block = 0;
+   int curr_target_block = 1;
    for(int i=1; i<nextTargetQuad; i++){
     if(i == Target_code_blocks[curr_target_block]){
-        if(curr_target_block != 0) cout << endl;
-        cout << "Block " << ++curr_target_block << endl;
+        if(curr_target_block > 1) cout << endl;
+        cout << "Block " << curr_target_block++ << endl;
     }
     //JMP
     if(T[i].op == "JMP") cout << " " << setw(4) << i << "   : " << T[i].op << " " << T[i].result << endl;
@@ -469,10 +491,26 @@ void print_target_code(){
    cout<< " " << setw(4) << nextTargetQuad << "   :" << endl;
 }
 
+void print_leaders(){
+    cout << "Leaders: ";
+    for(int i=1; i<=blockCounter; i++) cout << leaders[i] << " ";
+    cout << endl;
+}
+
 // auxiliary function 
 bool isNumber(const string& str) { // checks if the string is a number
     if (str.empty()) return false;
     char* end = nullptr;
     strtol(str.c_str(), &end, 10);
     return (*end == 0);
+}
+
+void identify_leaders() {
+    leaders[blockCounter++] = 1;
+    for(int i = 0; i < nextquad; i++) {
+        if(quads[i].op == "goto" || quads[i].op == ">" || quads[i].op == "<" || quads[i].op == "==" || quads[i].op == "!=" || quads[i].op == "<=" || quads[i].op == ">=") {
+            leaders[blockCounter++] = i+1;
+            leaders[blockCounter++] = stoi(quads[i].result);
+        }
+    }
 }
