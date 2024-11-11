@@ -366,8 +366,10 @@ void generate_target_code() {
         else if(quads[qn].op == "+" || quads[qn].op == "-" || quads[qn].op == "*" || 
                 quads[qn].op == "/" || quads[qn].op == "%") generate_expr(qn);
     }
+    generate_store();
 
     Target_code_blocks.push_back(nextTargetQuad);
+
 
     // update the target labels
     update_target_labels();
